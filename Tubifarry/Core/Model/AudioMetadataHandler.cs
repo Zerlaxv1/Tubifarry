@@ -9,6 +9,8 @@ namespace Tubifarry.Core.Model
     {
         private readonly Logger? _logger;
         private static bool? _isFFmpegInstalled = null;
+        private static readonly object _ffmpegCheckLock = new();
+        private static readonly SemaphoreSlim _ffmpegInstallGate = new(1, 1);
 
         public string TrackPath { get; private set; }
         public Lyric? Lyric { get; set; }
@@ -704,6 +706,19 @@ namespace Tubifarry.Core.Model
             if (_isFFmpegInstalled.HasValue)
                 return _isFFmpegInstalled.Value;
 
+            lock (_ffmpegCheckLock)
+            {
+                if (_isFFmpegInstalled.HasValue)
+                    return _isFFmpegInstalled.Value;
+
+                bool isInstalled = DetectFFmpegInstallation();
+                _isFFmpegInstalled = isInstalled;
+                return isInstalled;
+            }
+        }
+
+        private static bool DetectFFmpegInstallation()
+        {
             bool isInstalled = false;
 
             if (!string.IsNullOrEmpty(FFmpeg.ExecutablesPath) && Directory.Exists(FFmpeg.ExecutablesPath))
@@ -756,7 +771,6 @@ namespace Tubifarry.Core.Model
             if (!isInstalled)
                 NzbDroneLogger.GetLogger(typeof(AudioMetadataHandler)).Trace("FFmpeg not found in configured path or system PATH");
 
-            _isFFmpegInstalled = isInstalled;
             return isInstalled;
         }
 
@@ -792,14 +806,40 @@ namespace Tubifarry.Core.Model
             return false;
         }
 
-        public static void ResetFFmpegInstallationCheck() => _isFFmpegInstalled = null;
+        public static void ResetFFmpegInstallationCheck()
+        {
+            lock (_ffmpegCheckLock)
+                _isFFmpegInstalled = null;
+        }
 
         public static Task InstallFFmpeg(string path)
         {
-            NzbDroneLogger.GetLogger(typeof(AudioMetadataHandler)).Trace($"Installing FFmpeg to: {path}");
-            ResetFFmpegInstallationCheck();
-            FFmpeg.SetExecutablesPath(path);
-            return CheckFFmpegInstalled() ? Task.CompletedTask : FFmpegDownloader.GetLatestVersion(FFmpegVersion.Official, path);
+            Logger logger = NzbDroneLogger.GetLogger(typeof(AudioMetadataHandler));
+
+            _ffmpegInstallGate.Wait();
+            try
+            {
+                FFmpeg.SetExecutablesPath(path);
+
+                ResetFFmpegInstallationCheck();
+                if (CheckFFmpegInstalled())
+                    return Task.CompletedTask;
+
+                logger.Trace("Installing FFmpeg to: {0}", path);
+                FFmpegDownloader.GetLatestVersion(FFmpegVersion.Official, path).GetAwaiter().GetResult();
+
+                ResetFFmpegInstallationCheck();
+                return Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "FFmpeg installation failed");
+                return Task.FromException(ex);
+            }
+            finally
+            {
+                _ffmpegInstallGate.Release();
+            }
         }
     }
 }
