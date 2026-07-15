@@ -1,4 +1,5 @@
-﻿using Jint;
+﻿using FuzzySharp;
+using Jint;
 using NLog;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Indexers;
@@ -138,6 +139,20 @@ namespace Tubifarry.Indexers.Lucida
         {
             (AudioFormat format, int bitrate, int bitDepth) = LucidaServiceHelper.GetServiceQuality(requestData.ServiceValue);
 
+            if (requestData.IsTrackSearch)
+            {
+                // song-mode: only surface matching single tracks; offering the album
+                // here would let the decision engine grab it whole again.
+                foreach (LucidaTrack trk in tracks ?? [])
+                {
+                    if (Fuzz.Ratio(trk.Title?.ToLowerInvariant() ?? string.Empty, requestData.TrackTitle!.ToLowerInvariant()) < 80)
+                        continue;
+
+                    TryAdd(() => CreateTrackData(trk, requestData, format, bitrate, bitDepth), releases, trk.Title ?? "unknown");
+                }
+                return;
+            }
+
             if (albums?.Count > 0)
             {
                 foreach (LucidaAlbum alb in albums)
@@ -190,12 +205,11 @@ namespace Tubifarry.Indexers.Lucida
         {
             List<LucidaArtist> artists = track.Artists ?? [];
             string artist = artists.FirstOrDefault()?.Name ?? "Unknown Artist";
-            string resolution = string.Empty;
 
             AlbumData data = new("Lucida", nameof(LucidaDownloadProtocol))
             {
                 AlbumId = track.Url,
-                AlbumName = track.Title,
+                AlbumName = rd.IsTrackSearch ? (rd.AlbumTitle ?? track.Title) : track.Title,
                 ArtistName = artist,
                 InfoUrl = $"{rd.BaseUrl}/?url={track.Url}",
                 TotalTracks = 1,
@@ -205,7 +219,22 @@ namespace Tubifarry.Indexers.Lucida
                 BitDepth = bitDepth
             };
 
-            ProcessReleaseDate(data, track.ReleaseDate);
+            if (rd.IsTrackSearch)
+            {
+                data.ExtraInfo = [$"Track: {track.Title}"];
+            }
+
+            if (rd.IsTrackSearch && rd.AlbumYear > 0)
+            {
+                data.ReleaseDate = rd.AlbumYear.ToString();
+                data.ReleaseDatePrecision = "year";
+                data.ParseReleaseDate();
+            }
+            else
+            {
+                ProcessReleaseDate(data, track.ReleaseDate);
+            }
+
             return data;
         }
 
