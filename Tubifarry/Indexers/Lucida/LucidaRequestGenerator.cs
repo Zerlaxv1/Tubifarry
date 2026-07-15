@@ -24,15 +24,30 @@ namespace Tubifarry.Indexers.Lucida
 
         public IndexerPageableRequestChain GetRecentRequests() => new();
 
-        public IndexerPageableRequestChain GetSearchRequests(AlbumSearchCriteria searchCriteria) => Generate(
+        public IndexerPageableRequestChain GetSearchRequests(AlbumSearchCriteria searchCriteria)
+        {
+            if (searchCriteria is TrackSearchCriteria trackCriteria)
+            {
+                // song-mode: search lucida for the track itself and let the parser
+                // emit single-track releases attributed to the album.
+                return Generate(
+                    query: string.Join(' ', new[] { trackCriteria.TrackTitle, trackCriteria.ArtistQuery }.Where(s => !string.IsNullOrWhiteSpace(s))),
+                    isSingle: false,
+                    albumTitle: trackCriteria.AlbumTitle,
+                    trackTitle: trackCriteria.TrackTitle,
+                    albumYear: trackCriteria.AlbumYear);
+            }
+
+            return Generate(
                 query: string.Join(' ', new[] { searchCriteria.AlbumQuery, searchCriteria.ArtistQuery }.Where(s => !string.IsNullOrWhiteSpace(s))),
                 isSingle: searchCriteria.Albums?.FirstOrDefault()?.AlbumReleases?.Value?.Min(r => r.TrackCount) == 1);
+        }
 
         public IndexerPageableRequestChain GetSearchRequests(ArtistSearchCriteria searchCriteria) => Generate(searchCriteria.ArtistQuery, false);
 
         public void SetSetting(LucidaIndexerSettings settings) => _settings = settings;
 
-        private IndexerPageableRequestChain Generate(string query, bool isSingle)
+        private IndexerPageableRequestChain Generate(string query, bool isSingle, string? albumTitle = null, string? trackTitle = null, int albumYear = 0)
         {
             IndexerPageableRequestChain chain = new();
             if (string.IsNullOrWhiteSpace(query))
@@ -81,7 +96,7 @@ namespace Tubifarry.Indexers.Lucida
                 HttpRequest req = new(url)
                 {
                     RequestTimeout = TimeSpan.FromSeconds(_settings.RequestTimeout),
-                    ContentSummary = new LucidaRequestData(service, _settings.BaseUrl, countryCode, isSingle).ToJson()
+                    ContentSummary = new LucidaRequestData(service, _settings.BaseUrl, countryCode, isSingle, albumTitle, trackTitle, albumYear).ToJson()
                 };
                 req.Headers["User-Agent"] = Tubifarry.UserAgent;
 

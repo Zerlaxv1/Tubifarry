@@ -12,7 +12,14 @@ namespace Tubifarry.Indexers.Lucida
         [property: JsonPropertyName("serviceValue")] string ServiceValue,
         [property: JsonPropertyName("baseUrl")] string BaseUrl,
         [property: JsonPropertyName("countryCode")] string CountryCode,
-        [property: JsonPropertyName("isSingle")] bool IsSingle);
+        [property: JsonPropertyName("isSingle")] bool IsSingle,
+        [property: JsonPropertyName("albumTitle")] string? AlbumTitle = null,
+        [property: JsonPropertyName("trackTitle")] string? TrackTitle = null,
+        [property: JsonPropertyName("albumYear")] int AlbumYear = 0)
+    {
+        [JsonIgnore]
+        public bool IsTrackSearch => !string.IsNullOrWhiteSpace(TrackTitle);
+    }
 
     /// <summary>
     /// Search results wrapper
