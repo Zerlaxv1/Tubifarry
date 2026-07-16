@@ -6,6 +6,9 @@ Tubifarry is a plugin for **Lidarr** that adds multiple music sources to your li
 Additionally, Tubifarry supports fetching soundtracks from **Sonarr** (series) and **Radarr** (movies) and adding them to Lidarr using the **Arr-Soundtracks** import list feature. This makes it easy to manage and download soundtracks for your favorite movies and TV shows. 🎬🎵
 For further customization, Codec Tinker lets you convert audio files between formats using FFmpeg, helping you optimize your library.⚙️
 
+> [!NOTE]
+> This is [Zerlaxv1/Tubifarry](https://github.com/Zerlaxv1/Tubifarry)'s `song-mode` fork: its Lucida indexer emits single-track releases for track searches, so Lidarr can grab individual songs instead of whole albums. Requires the [Lidarr `song-mode` fork](https://github.com/Zerlaxv1/Lidarr/tree/song-mode). Install via `System -> Plugins` with `https://github.com/Zerlaxv1/Tubifarry/tree/song-mode`.
+
 > **Note**: Some details in this documentation may vary from the current implementation.
 
 ---
