@@ -7,6 +7,7 @@ using Requests;
 using Requests.Options;
 using System.Text;
 using System.Text.Json;
+using Tubifarry.Core.Model;
 using Tubifarry.Core.Utilities;
 using Tubifarry.Download.Base;
 using Tubifarry.Indexers.Lucida;
@@ -66,29 +67,26 @@ namespace Tubifarry.Download.Clients.Lucida
             if (!tokens.IsValid)
                 throw new Exception("Failed to extract authentication tokens");
 
-            Track trackMetadata = CreateTrackFromLucidaData(new LucidaTrackModel
+            LucidaTrackModel lucidaTrack = new()
             {
                 Title = ReleaseInfo.Title,
                 TrackNumber = 1,
                 Artist = _remoteAlbum.Artist?.Name ?? "Unknown Artist",
                 DurationMs = 0
-            }, new LucidaAlbumModel
-            {
-                Title = ReleaseInfo.Album ?? ReleaseInfo.Title,
-                Artist = _remoteAlbum.Artist?.Name ?? "Unknown Artist",
-                ReleaseDate = ReleaseInfo.PublishDate.ToString("yyyy-MM-dd")
-            });
-
-            Album albumMetadata = CreateAlbumFromLucidaData(new LucidaAlbumModel
+            };
+            LucidaAlbumModel lucidaAlbum = new()
             {
                 Title = ReleaseInfo.Album ?? ReleaseInfo.Title,
                 Artist = _remoteAlbum.Artist?.Name ?? "Unknown Artist",
                 ReleaseDate = ReleaseInfo.PublishDate.ToString("yyyy-MM-dd"),
                 TrackCount = 1
-            });
+            };
+
+            Track trackMetadata = CreateTrackFromLucidaData(lucidaTrack, lucidaAlbum);
+            Album albumMetadata = CreateAlbumFromLucidaData(lucidaAlbum);
 
             string fileName = BuildTrackFilename(trackMetadata, albumMetadata, AudioFormatHelper.GetFileExtensionForCodec(_remoteAlbum.Release.Codec.ToLower()));
-            InitiateDownload(downloadUrl, tokens.Primary, tokens.Fallback, tokens.Expiry, fileName, token);
+            InitiateDownload(downloadUrl, tokens.Primary, tokens.Fallback, tokens.Expiry, fileName, lucidaTrack, token);
             _requestContainer.Add(_trackContainer);
         }
 
@@ -116,7 +114,7 @@ namespace Tubifarry.Download.Clients.Lucida
                         continue;
                     }
 
-                    InitiateDownload(trackUrl, album.PrimaryToken!, album.FallbackToken!, album.TokenExpiry, trackFileName, token);
+                    InitiateDownload(trackUrl, album.PrimaryToken!, album.FallbackToken!, album.TokenExpiry, trackFileName, track, token);
                     _logger.Trace($"Track {i + 1}/{album.Tracks.Count} completed: {track.Title}");
                 }
                 catch (Exception ex)
@@ -127,7 +125,7 @@ namespace Tubifarry.Download.Clients.Lucida
             _requestContainer.Add(_trackContainer);
         }
 
-        private void InitiateDownload(string url, string primaryToken, string fallbackToken, long expiry, string fileName, CancellationToken token)
+        private void InitiateDownload(string url, string primaryToken, string fallbackToken, long expiry, string fileName, LucidaTrackModel trackInfo, CancellationToken token)
         {
             OwnRequest downloadRequestWrapper = new(async (t) =>
             {
@@ -177,7 +175,30 @@ namespace Tubifarry.Download.Clients.Lucida
                         WriteMode = WriteMode.AppendOrTruncate,
                     });
 
+                    OwnRequest postProcessRequest = new((pt) => PostProcessTrackAsync(trackInfo, downloadRequest, pt), new RequestOptions<VoidStruct, VoidStruct>()
+                    {
+                        AutoStart = false,
+                        Priority = RequestPriority.High,
+                        DelayBetweenAttemps = Options.DelayBetweenAttemps,
+                        Handler = Options.Handler,
+                        CancellationToken = t,
+                        RequestFailed = (_, __) =>
+                        {
+                            LogAndAppendMessage($"Post-processing failed: {fileName}", LogLevel.Error);
+                            try
+                            {
+                                if (File.Exists(downloadRequest.Destination))
+                                    File.Delete(downloadRequest.Destination);
+                            }
+                            catch { }
+                        }
+                    });
+
+                    downloadRequest.TrySetSubsequentRequest(postProcessRequest);
+                    postProcessRequest.TrySetIdle();
+
                     _trackContainer.Add(downloadRequest);
+                    _requestContainer.Add(postProcessRequest);
                     return true;
                 }
                 catch (Exception ex)
@@ -418,6 +439,51 @@ namespace Tubifarry.Download.Clients.Lucida
             if (string.IsNullOrEmpty(url))
                 return "lucida.to";
             return url.Replace("https://", "").Replace("http://", "").TrimEnd('/');
+        }
+
+        private async Task<bool> PostProcessTrackAsync(LucidaTrackModel trackInfo, LoadRequest request, CancellationToken token)
+        {
+            string trackPath = request.Destination;
+            await Task.Delay(100, token);
+
+            if (!File.Exists(trackPath))
+            {
+                _logger.Error($"Track file not found after download: {trackPath}");
+                return false;
+            }
+
+            try
+            {
+                AudioMetadataHandler audioData = new(trackPath) { AlbumCover = _albumCover };
+
+                // The streaming source tags the file with its own (often wrong) album, e.g. a
+                // single's title instead of the real album. Always resolve the tag from the
+                // grabbed RemoteAlbum first so Lidarr's importer can match it back.
+                LucidaAlbumModel albumInfo = new()
+                {
+                    Title = _remoteAlbum.Albums?.FirstOrDefault()?.Title ?? ReleaseInfo.Album ?? ReleaseInfo.Title,
+                    Artist = _remoteAlbum.Artist?.Name ?? "Unknown Artist",
+                    ReleaseDate = ReleaseInfo.PublishDate.ToString("yyyy-MM-dd"),
+                    TrackCount = _expectedTrackCount
+                };
+
+                Album album = CreateAlbumFromLucidaData(albumInfo);
+                Track track = CreateTrackFromLucidaData(trackInfo, albumInfo);
+
+                if (!audioData.TryEmbedMetadata(album, track))
+                {
+                    _logger.Warn($"Failed to embed metadata for: {Path.GetFileName(trackPath)}");
+                    return false;
+                }
+
+                _logger.Trace($"Successfully processed track: {Path.GetFileName(trackPath)}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogAndAppendMessage($"Post-processing failed for {Path.GetFileName(trackPath)}: {ex.Message}", LogLevel.Error);
+                return false;
+            }
         }
 
         private Album CreateAlbumFromLucidaData(LucidaAlbumModel? albumInfo)
