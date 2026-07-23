@@ -67,16 +67,26 @@ namespace Tubifarry.Download.Clients.Lucida
             if (!tokens.IsValid)
                 throw new Exception("Failed to extract authentication tokens");
 
-            LucidaTrackModel lucidaTrack = new()
-            {
-                Title = ReleaseInfo.Title,
-                TrackNumber = 1,
-                Artist = _remoteAlbum.Artist?.Name ?? "Unknown Artist",
-                DurationMs = 0
-            };
+            // Fetch the real track metadata (title, track number, duration) instead of a
+            // stub. A single-track download otherwise tags the file with the release title
+            // and track number 1, which makes Lidarr's CloseAlbumMatchSpecification reject
+            // the import ("worst track match") because the file maps to the wrong MB track.
+            LucidaAlbumModel extracted = await LucidaMetadataExtractor.ExtractAlbumMetadataAsync(_httpClient, downloadUrl);
+
+            LucidaTrackModel lucidaTrack =
+                extracted.Tracks.Count == 1
+                    ? extracted.Tracks[0]
+                    : extracted.Tracks.FirstOrDefault(t =>
+                          (!string.IsNullOrEmpty(t.Url) && t.Url == downloadUrl) ||
+                          (!string.IsNullOrEmpty(t.Title) && ReleaseInfo.Title.Contains(t.Title)))
+                      ?? new LucidaTrackModel { Title = ReleaseInfo.Title, TrackNumber = 1, DurationMs = 0 };
+
+            if (string.IsNullOrEmpty(lucidaTrack.Artist))
+                lucidaTrack.Artist = _remoteAlbum.Artist?.Name ?? "Unknown Artist";
+
             LucidaAlbumModel lucidaAlbum = new()
             {
-                Title = ReleaseInfo.Album ?? ReleaseInfo.Title,
+                Title = _remoteAlbum.Albums?.FirstOrDefault()?.Title ?? ReleaseInfo.Album ?? ReleaseInfo.Title,
                 Artist = _remoteAlbum.Artist?.Name ?? "Unknown Artist",
                 ReleaseDate = ReleaseInfo.PublishDate.ToString("yyyy-MM-dd"),
                 TrackCount = 1
