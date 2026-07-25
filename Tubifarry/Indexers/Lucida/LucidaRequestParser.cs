@@ -145,7 +145,11 @@ namespace Tubifarry.Indexers.Lucida
                 // here would let the decision engine grab it whole again.
                 foreach (LucidaTrack trk in tracks ?? [])
                 {
-                    if (Fuzz.Ratio(trk.Title?.ToLowerInvariant() ?? string.Empty, requestData.TrackTitle!.ToLowerInvariant()) < 80)
+                    // TokenSetRatio, not Ratio: a streaming service spells the same track
+                    // "Bohemian Rhapsody - Remastered 2011" where the request says
+                    // "Bohemian Rhapsody", and a whole-string ratio scores that around 67
+                    // and discards it - the very titles the core learned to match.
+                    if (Fuzz.TokenSetRatio(trk.Title?.ToLowerInvariant() ?? string.Empty, requestData.TrackTitle!.ToLowerInvariant()) < 80)
                         continue;
 
                     TryAdd(() => CreateTrackData(trk, requestData, format, bitrate, bitDepth), releases, trk.Title ?? "unknown");
