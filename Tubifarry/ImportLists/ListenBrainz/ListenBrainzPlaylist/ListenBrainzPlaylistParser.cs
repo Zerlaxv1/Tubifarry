@@ -53,7 +53,7 @@ namespace Tubifarry.ImportLists.ListenBrainz.ListenBrainzPlaylist
                 .Select(ExtractAlbumInfo)
                 .Where(item => item != null)
                 .Cast<ImportListItemInfo>()
-                .GroupBy(item => new { item.Album, item.Artist, item.ArtistMusicBrainzId })
+                .GroupBy(item => new { item.Album, item.Artist, item.ArtistMusicBrainzId, item.TrackTitle })
                 .Select(g => g.First())
                 .ToList();
         }
@@ -74,7 +74,8 @@ namespace Tubifarry.ImportLists.ListenBrainz.ListenBrainzPlaylist
                 {
                     Album = album,
                     Artist = artist,
-                    ArtistMusicBrainzId = artistMbid
+                    ArtistMusicBrainzId = artistMbid,
+                    TrackTitle = track.Title
                 };
             }
             catch (Exception ex)
