@@ -474,7 +474,11 @@ namespace Tubifarry.Download.Clients.Lucida
                     Title = _remoteAlbum.Albums?.FirstOrDefault()?.Title ?? ReleaseInfo.Album ?? ReleaseInfo.Title,
                     Artist = _remoteAlbum.Artist?.Name ?? "Unknown Artist",
                     ReleaseDate = ReleaseInfo.PublishDate.ToString("yyyy-MM-dd"),
-                    TrackCount = _expectedTrackCount
+
+                    // A song-mode grab expects one file, but the track keeps its real number
+                    // on the album, so tagging the total as 1 wrote "track 7 of 1". Never
+                    // claim a total below the number being written.
+                    TrackCount = Math.Max(_expectedTrackCount, trackInfo.TrackNumber)
                 };
 
                 Album album = CreateAlbumFromLucidaData(albumInfo);
