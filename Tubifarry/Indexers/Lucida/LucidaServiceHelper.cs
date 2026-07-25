@@ -50,6 +50,19 @@ namespace Tubifarry.Indexers.Lucida
             Logger logger)
         {
             baseUrl = baseUrl.TrimEnd('/');
+
+            // Discovery swallows its errors and yields an empty set whenever the instance
+            // is unreachable - typically FlareSolverr being down - and GetOrAdd would keep
+            // that answer for the lifetime of the process, so every later search returns
+            // nothing until Lidarr is restarted. Forget an unusable answer instead, which
+            // makes the next search retry.
+            if (_cache.TryGetValue(baseUrl, out Task<Dictionary<string, List<ServiceCountry>>>? cached) && cached.IsCompleted &&
+                (cached.Status != TaskStatus.RanToCompletion || cached.Result.Count == 0))
+            {
+                logger.Warn("No Lucida services were discovered at {0} last time, retrying", baseUrl);
+                _cache.TryRemove(baseUrl, out _);
+            }
+
             return _cache.GetOrAdd(baseUrl, _ => FetchServicesAsync(baseUrl, httpClient, logger));
         }
 
