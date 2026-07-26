@@ -67,7 +67,9 @@ jobs:
       - name: Smoke-test the image
         if: github.event_name != 'pull_request'
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          # From the metadata action rather than assembled here: the owner is Zerlaxv1 but a
+          # docker reference has to be lowercase, and that step already did the lowercasing.
+          IMAGE: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
         run: |
           docker run -d --name smoke -p 8686:8686 "$IMAGE"
 
