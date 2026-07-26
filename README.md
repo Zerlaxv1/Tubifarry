@@ -9,6 +9,12 @@ For further customization, Codec Tinker lets you convert audio files between for
 > [!NOTE]
 > This is [Zerlaxv1/Tubifarry](https://github.com/Zerlaxv1/Tubifarry)'s `song-mode` fork: its Lucida indexer emits single-track releases for track searches, so Lidarr can grab individual songs instead of whole albums. Requires the [Lidarr `song-mode` fork](https://github.com/Zerlaxv1/Lidarr/tree/song-mode). Install via `System -> Plugins` with `https://github.com/Zerlaxv1/Tubifarry/tree/song-mode`.
 
+> [!IMPORTANT]
+> The song-mode changes in this fork were written with AI assistance (Claude), reviewed and
+> tested by a human before merging. They are covered by tests and exercised against a real
+> library, but have not had the scrutiny upstream code gets. Read the diff before running it
+> on a collection you care about.
+
 > **Note**: Some details in this documentation may vary from the current implementation.
 
 ---
