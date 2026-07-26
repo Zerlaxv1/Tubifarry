@@ -39,9 +39,17 @@ RUN ./build.sh --backend --frontend --packages --runtime "${RUNTIME}" --framewor
 WORKDIR /src
 RUN dotnet build Tubifarry/Tubifarry.csproj -c Release -p:RunAnalyzers=false
 
+# Only the plugin's own files, which is exactly what the release zip ships. The build output
+# next to them also holds the host assemblies it compiled against, and a second Lidarr.Core
+# beside the plugin makes its load context throw instead of loading it. Everything the plugin
+# needs beyond the host is already ILRepacked into that one assembly.
+RUN mkdir /plugin \
+ && cp /src/_plugins/Tubifarry/Lidarr.Plugin.Tubifarry.* /plugin/
+
 # Fail loudly here rather than shipping an image whose plugin cannot load.
 RUN test -x "/src/Submodules/Lidarr/_artifacts/${RUNTIME}/${FRAMEWORK}/Lidarr/Lidarr" \
- && test -f /src/_plugins/Tubifarry/Lidarr.Plugin.Tubifarry.dll
+ && test -f /plugin/Lidarr.Plugin.Tubifarry.dll \
+ && test ! -e /plugin/Lidarr.Core.dll
 
 # ---------------------------------------------------------------- runtime
 
@@ -59,7 +67,7 @@ COPY --from=build /src/Submodules/Lidarr/_artifacts/${RUNTIME}/${FRAMEWORK}/Lida
 # Staged, not installed: plugins live in the data directory, which is a volume and only
 # exists at run time. The entrypoint syncs it on every start so the plugin always matches
 # the image rather than whatever an older container left behind.
-COPY --from=build /src/_plugins/Tubifarry /opt/tubifarry
+COPY --from=build /plugin /opt/tubifarry
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh /app/Lidarr
