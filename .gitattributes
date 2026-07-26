@@ -61,3 +61,11 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# Container build files must stay LF: a CRLF shebang fails inside the image with
+# an "bad interpreter" error that names no file.
+###############################################################################
+*.sh                 text eol=lf
+Dockerfile           text eol=lf
+docker-entrypoint.sh text eol=lf
