@@ -5,11 +5,13 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AssemblyName>Lidarr.Plugin.$(MSBuildProjectName)</AssemblyName>
-		<AssemblyVersion>1.0.0.0</AssemblyVersion>
+		<AssemblyVersion>2.1.1.0</AssemblyVersion>
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<Branch></Branch>
-		<Author>TypNull</Author>
-		<RepoUrl>https://github.com/TypNull/Tubifarry</RepoUrl>
+		<!-- This fork, not TypNull's: RepoUrl is where Lidarr looks for plugin updates, so
+		     pointing it upstream offers to "update" song mode away with an upstream build. -->
+		<Author>Zerlaxv1</Author>
+		<RepoUrl>https://github.com/Zerlaxv1/Tubifarry</RepoUrl>
 		<CI>false</CI>
 		<InformationalVersion>$(AssemblyVersion)-$(Branch)</InformationalVersion>
 		<DefineConstants Condition="'$(CI)' == true">$(DefineConstants);CI</DefineConstants>

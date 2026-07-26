@@ -11,7 +11,7 @@ public sealed class PlaylistExportNotification : NotificationBase<PlaylistExport
     public PlaylistExportNotification(IPlaylistExportService service) => _service = service;
 
     public override string Name => "Playlist Export";
-    public override string Link => "https://github.com/TypNull/Tubifarry";
+    public override string Link => "https://github.com/Zerlaxv1/Tubifarry";
 
     public override ProviderMessage Message =>
         new("Generates .m3u8 playlist files for selected import lists whenever a track is imported.",
