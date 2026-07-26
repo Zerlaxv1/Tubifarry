@@ -1,0 +1,10 @@
+# Build outputs from a local checkout: the image builds its own, and copying these in both
+# bloats the context and lets a stale local artifact shadow the freshly built one.
+**/_output
+**/_temp
+**/_tests
+**/_artifacts
+**/_plugins
+**/node_modules
+**/bin
+**/obj
